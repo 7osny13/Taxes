@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام متابعة الفواتير الضريبية</title>
+    <!-- Prevent favicon 404 error -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
+    <link rel="stylesheet" href="style.css">
+    <!-- Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <h1>🧾 نظام متابعة الفواتير الضريبية</h1>
+            <div class="user-info">
+                <span id="userName">عمر</span>
+                <button class="btn-logout" onclick="logout()">تسجيل خروج</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav>
+        <div class="container">
+            <ul class="nav-menu">
+                <li><a href="#" onclick="showPage('dashboard')" class="active">الرئيسية</a></li>
+                <li><a href="#" onclick="showPage('add-invoice')">إضافة فاتورة</a></li>
+                <li><a href="#" onclick="showPage('invoices')">كل الفواتير</a></li>
+                <li><a href="#" onclick="showPage('companies')">متابعة الشركات</a></li>
+                <li><a href="#" onclick="showPage('reports')">التقارير</a></li>
+                <li><a href="#" onclick="showPage('settings')">الإعدادات</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container">
+        
+        <!-- Dashboard Page -->
+        <section id="dashboard-page" class="page active">
+            <h2>لوحة التحكم</h2>
+            
+            <!-- Alert Section -->
+            <div id="alertSection" class="alert-box" style="display: none;">
+                <h3>⚠️ تنبيهات مهمة</h3>
+                <div id="alertContent"></div>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-info">
+                        <h3 id="totalInvoices">0</h3>
+                        <p>إجمالي الفواتير</p>
+                    </div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-info">
+                        <h3 id="receivedInvoices">0</h3>
+                        <p>فواتير مستلمة</p>
+                    </div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-icon">⏳</div>
+                    <div class="stat-info">
+                        <h3 id="pendingInvoices">0</h3>
+                        <p>فواتير منتظرة</p>
+                    </div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-info">
+                        <h3 id="totalPendingAmount">0 جنيه</h3>
+                        <p>إجمالي 1% المعرض للدفع</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Invoices -->
+            <div class="section-card">
+                <h3>آخر الفواتير</h3>
+                <div id="recentInvoicesList" class="table-container">
+                    <p class="no-data">لا توجد فواتير بعد</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Add Invoice Page -->
+        <section id="add-invoice-page" class="page">
+            <h2>إضافة فاتورة جديدة</h2>
+            <div class="form-card">
+                <form id="invoiceForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="invoiceNumber">رقم الفاتورة *</label>
+                            <input type="text" id="invoiceNumber" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="invoiceDate">تاريخ الفاتورة *</label>
+                            <input type="date" id="invoiceDate" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="companyName">اسم الشركة *</label>
+                            <div class="input-group">
+                                <select id="companyName" required>
+                                    <option value="">اختر شركة...</option>
+                                </select>
+                                <button type="button" class="btn-secondary" onclick="showAddCompanyModal()">+ إضافة شركة جديدة</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="totalAmount">المبلغ الإجمالي (جنيه) *</label>
+                            <input type="number" id="totalAmount" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="taxAmount">قيمة 1% (محسوبة تلقائياً)</label>
+                            <input type="number" id="taxAmount" readonly>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="receiptStatus">حالة الإيصال *</label>
+                        <select id="receiptStatus" required>
+                            <option value="pending">❌ لم يستلم</option>
+                            <option value="received">✅ مستلم</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="receiptUploadSection" style="display: none;">
+                        <label for="receiptFile">إرفاق صورة الإيصال</label>
+                        <input type="file" id="receiptFile" accept="image/*,application/pdf">
+                        <small>يمكنك رفع صورة أو ملف PDF</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="notes">ملاحظات</label>
+                        <textarea id="notes" rows="3"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">حفظ الفاتورة</button>
+                        <button type="reset" class="btn-secondary">إعادة تعيين</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- All Invoices Page -->
+        <section id="invoices-page" class="page">
+            <h2>كل الفواتير</h2>
+            
+            <!-- Filters -->
+            <div class="filters-card">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label for="filterCompany">الشركة:</label>
+                        <select id="filterCompany">
+                            <option value="">الكل</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterStatus">الحالة:</label>
+                        <select id="filterStatus">
+                            <option value="">الكل</option>
+                            <option value="received">مستلم</option>
+                            <option value="pending">لم يستلم</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterDateFrom">من تاريخ:</label>
+                        <input type="date" id="filterDateFrom">
+                    </div>
+                    <div class="filter-group">
+                        <label for="filterDateTo">إلى تاريخ:</label>
+                        <input type="date" id="filterDateTo">
+                    </div>
+                    <div class="filter-group">
+                        <label for="searchInvoice">بحث سريع:</label>
+                        <input type="text" id="searchInvoice" placeholder="رقم الفاتورة أو اسم الشركة">
+                    </div>
+                    <button class="btn-primary" onclick="applyFilters()">تطبيق</button>
+                    <button class="btn-secondary" onclick="resetFilters()">إعادة تعيين</button>
+                </div>
+            </div>
+
+            <!-- Invoices Table -->
+            <div class="section-card">
+                <div id="invoicesTable" class="table-container">
+                    <p class="no-data">لا توجد فواتير</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Companies Page -->
+        <section id="companies-page" class="page">
+            <h2>متابعة الشركات</h2>
+            <div class="section-card">
+                <div id="companiesTable" class="table-container">
+                    <p class="no-data">لا توجد شركات مسجلة</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Page -->
+        <section id="reports-page" class="page">
+            <h2>التقارير</h2>
+            
+            <div class="reports-grid">
+                <!-- Monthly Report -->
+                <div class="section-card">
+                    <h3>📅 التقرير الشهري</h3>
+                    <div class="report-controls">
+                        <select id="reportMonth">
+                            <option value="1">يناير</option>
+                            <option value="2">فبراير</option>
+                            <option value="3">مارس</option>
+                            <option value="4">أبريل</option>
+                            <option value="5">مايو</option>
+                            <option value="6">يونيو</option>
+                            <option value="7">يوليو</option>
+                            <option value="8">أغسطس</option>
+                            <option value="9">سبتمبر</option>
+                            <option value="10">أكتوبر</option>
+                            <option value="11">نوفمبر</option>
+                            <option value="12">ديسمبر</option>
+                        </select>
+                        <select id="reportYear">
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                            <option value="2026">2026</option>
+                        </select>
+                        <button class="btn-primary" onclick="generateMonthlyReport()">عرض</button>
+                    </div>
+                    <div id="monthlyReportContent"></div>
+                </div>
+
+                <!-- Overdue Invoices Report -->
+                <div class="section-card">
+                    <h3>⚠️ الفواتير المتأخرة (أكثر من 30 يوم)</h3>
+                    <div id="overdueReportContent"></div>
+                </div>
+
+                <!-- Annual Summary -->
+                <div class="section-card">
+                    <h3>📊 الملخص السنوي</h3>
+                    <div class="report-controls">
+                        <select id="annualReportYear">
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                            <option value="2026">2026</option>
+                        </select>
+                        <button class="btn-primary" onclick="generateAnnualReport()">عرض</button>
+                    </div>
+                    <div id="annualReportContent"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Settings Page -->
+        <section id="settings-page" class="page">
+            <h2>الإعدادات</h2>
+            
+            <div class="settings-grid">
+                <!-- Company Management -->
+                <div class="section-card">
+                    <h3>إدارة الشركات</h3>
+                    <div id="companiesManagement">
+                        <div class="companies-list" id="companiesList"></div>
+                    </div>
+                </div>
+
+                <!-- Alert Settings -->
+                <div class="section-card">
+                    <h3>إعدادات التنبيهات</h3>
+                    <form id="settingsForm">
+                        <div class="form-group">
+                            <label for="alertDays">مدة التنبيه (بالأيام)</label>
+                            <input type="number" id="alertDays" value="30" min="1">
+                            <small>سيتم التنبيه للفواتير التي مر عليها أكثر من هذه المدة بدون استلام الإيصال</small>
+                        </div>
+                        <button type="button" class="btn-primary" onclick="saveSettings()">حفظ الإعدادات</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modals -->
+    <!-- Add Company Modal -->
+    <div id="addCompanyModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeAddCompanyModal()">&times;</span>
+            <h3>إضافة شركة جديدة</h3>
+            <form id="addCompanyForm">
+                <div class="form-group">
+                    <label for="newCompanyName">اسم الشركة *</label>
+                    <input type="text" id="newCompanyName" required>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">إضافة</button>
+                    <button type="button" class="btn-secondary" onclick="closeAddCompanyModal()">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Invoice Details Modal -->
+    <div id="invoiceDetailsModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeInvoiceDetailsModal()">&times;</span>
+            <h3>تفاصيل الفاتورة</h3>
+            <div id="invoiceDetailsContent"></div>
+        </div>
+    </div>
+
+    <!-- Edit Invoice Modal -->
+    <div id="editInvoiceModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditInvoiceModal()">&times;</span>
+            <h3>تعديل الفاتورة</h3>
+            <form id="editInvoiceForm">
+                <input type="hidden" id="editInvoiceId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editInvoiceNumber">رقم الفاتورة *</label>
+                        <input type="text" id="editInvoiceNumber" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editInvoiceDate">تاريخ الفاتورة *</label>
+                        <input type="date" id="editInvoiceDate" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editCompanyName">اسم الشركة *</label>
+                    <select id="editCompanyName" required>
+                        <option value="">اختر شركة...</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editTotalAmount">المبلغ الإجمالي *</label>
+                        <input type="number" id="editTotalAmount" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editTaxAmount">قيمة 1%</label>
+                        <input type="number" id="editTaxAmount" readonly>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editReceiptStatus">حالة الإيصال *</label>
+                    <select id="editReceiptStatus" required>
+                        <option value="pending">❌ لم يستلم</option>
+                        <option value="received">✅ مستلم</option>
+                    </select>
+                </div>
+                <div class="form-group" id="editReceiptUploadSection">
+                    <label for="editReceiptFile">إرفاق صورة الإيصال</label>
+                    <input type="file" id="editReceiptFile" accept="image/*,application/pdf">
+                    <div id="currentReceiptPreview"></div>
+                </div>
+                <div class="form-group">
+                    <label for="editNotes">ملاحظات</label>
+                    <textarea id="editNotes" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">حفظ التعديلات</button>
+                    <button type="button" class="btn-secondary" onclick="closeEditInvoiceModal()">إلغاء</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
