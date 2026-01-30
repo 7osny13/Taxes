@@ -5,35 +5,58 @@ let currentReceipts = [];
 let editingInvoiceId = null;
 let editingCompanyId = null;
 
+// Safe DOM helpers
+function safeGetElement(id) {
+    const element = document.getElementById(id);
+    if (!element) {
+        console.warn(`Element with id '${id}' not found`);
+    }
+    return element;
+}
+
+function showLoading() {
+    const spinner = safeGetElement('loadingSpinner');
+    if (spinner) spinner.classList.add('active');
+}
+
+function hideLoading() {
+    const spinner = safeGetElement('loadingSpinner');
+    if (spinner) spinner.classList.remove('active');
+}
+
 // Initialize data when Supabase is ready
 window.initializeData = async function() {
-    showLoading();
-    await loadCompanies();
-    await loadInvoices();
-    await loadReceipts();
-    updateDashboardStats();
-    checkAlerts();
-    hideLoading();
+    try {
+        if (!supabase) {
+            console.error('Supabase client not initialized');
+            showNotification('فشل الاتصال بقاعدة البيانات', 'error');
+            return;
+        }
+        
+        console.log('Loading data...');
+        showLoading();
+        
+        await loadCompanies();
+        await loadInvoices();
+        await loadReceipts();
+        updateDashboardStats();
+        checkAlerts();
+        
+        hideLoading();
+        console.log('✅ Data loaded successfully');
+    } catch (error) {
+        console.error('Error loading data:', error);
+        hideLoading();
+        showNotification('خطأ في تحميل البيانات: ' + error.message, 'error');
+    }
 };
 
-// Wait for DOM and config to load
-document.addEventListener('DOMContentLoaded', () => {
-    // Wait for Supabase to be initialized
-    const checkSupabase = setInterval(() => {
-        if (window.supabase && supabase) {
-            clearInterval(checkSupabase);
-            window.initializeData();
-        }
-    }, 100);
-    
-    // Timeout after 10 seconds
-    setTimeout(() => {
-        clearInterval(checkSupabase);
-        if (!supabase) {
-            showNotification('فشل الاتصال بقاعدة البيانات. يرجى تحديث الصفحة.', 'error');
-        }
-    }, 10000);
-});
+// Start initialization when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}
 
 // =========================
 // DATA LOADING FUNCTIONS
@@ -753,14 +776,6 @@ function fileToBase64(file) {
         reader.onload = () => resolve(reader.result);
         reader.onerror = error => reject(error);
     });
-}
-
-function showLoading() {
-    document.getElementById('loadingSpinner').classList.add('active');
-}
-
-function hideLoading() {
-    document.getElementById('loadingSpinner').classList.remove('active');
 }
 
 function showNotification(message, type) {
