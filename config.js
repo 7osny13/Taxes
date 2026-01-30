@@ -1,42 +1,98 @@
 // Supabase Configuration
-// Replace these with your actual Supabase project credentials
 const SUPABASE_URL = 'https://foxvwykyoraznbadozba.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZveHZ3eWt5b3Jhem5iYWRvemJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3NzI3NzgsImV4cCI6MjA4NTM0ODc3OH0.jDAnMiRI7HQ6AMTOASLQptlKjrD8xxjQjUQm-4tcUWE';
 
 // Initialize Supabase client
-let supabase;
+let supabase = null;
+
+// Load Supabase library
+function loadSupabaseLibrary() {
+    return new Promise((resolve, reject) => {
+        // Check if already loaded
+        if (window.supabase && window.supabase.createClient) {
+            resolve();
+            return;
+        }
+
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js';
+        script.crossOrigin = 'anonymous';
+        
+        script.onload = () => {
+            console.log('Supabase library loaded from CDN');
+            // Wait a moment for the library to initialize
+            setTimeout(() => {
+                if (window.supabase && window.supabase.createClient) {
+                    resolve();
+                } else {
+                    reject(new Error('Supabase library failed to initialize'));
+                }
+            }, 200);
+        };
+        
+        script.onerror = (error) => {
+            console.error('Failed to load Supabase library:', error);
+            reject(error);
+        };
+        
+        document.head.appendChild(script);
+    });
+}
 
 // Initialize the app
 async function initializeApp() {
     try {
-        // Load Supabase library from CDN
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+        console.log('Starting initialization...');
         
-        script.onload = async () => {
-            // Wait a bit for the library to be fully available
-            await new Promise(resolve => setTimeout(resolve, 100));
+        // Load Supabase library
+        await loadSupabaseLibrary();
+        
+        // Create client
+        if (window.supabase && window.supabase.createClient) {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('✅ Supabase client created successfully');
             
-            if (window.supabase && window.supabase.createClient) {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                console.log('Supabase initialized successfully');
-                
-                // Initialize the rest of the app
-                if (typeof window.initializeData === 'function') {
-                    window.initializeData();
-                }
-            } else {
-                console.error('Supabase library not loaded properly');
+            // Test connection
+            const { data, error } = await supabase.from('companies').select('count');
+            if (error && error.code !== 'PGRST116') {
+                console.warn('Database connection issue:', error.message);
             }
-        };
-        
-        script.onerror = () => {
-            console.error('Failed to load Supabase library');
-        };
-        
-        document.head.appendChild(script);
+            
+            // Initialize data
+            if (typeof window.initializeData === 'function') {
+                await window.initializeData();
+            }
+        } else {
+            throw new Error('Supabase library not available');
+        }
     } catch (error) {
-        console.error('Error initializing Supabase:', error);
+        console.error('❌ Initialization error:', error);
+        
+        // Show user-friendly error
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4757;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 9999;
+            max-width: 400px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        `;
+        notification.innerHTML = `
+            <strong>⚠️ خطأ في الاتصال</strong><br>
+            ${error.message}<br>
+            <small>يرجى التحقق من اتصال الإنترنت وتحديث الصفحة</small>
+        `;
+        document.body.appendChild(notification);
+        
+        // Hide loading spinner
+        if (typeof hideLoading === 'function') {
+            hideLoading();
+        }
     }
 }
 
